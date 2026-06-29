@@ -27,8 +27,6 @@
     .info-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px,1fr)); gap: 6px; }
     .info-item { background: #141a24; padding: 4px 12px; border-radius: 8px; font-size: 0.75rem; border: 1px solid #1e293b; }
     .info-item span { color: #a5b4fc; font-weight: 600; }
-    .crop-handle { position: absolute; width: 10px; height: 10px; background: #818cf8; border: 1px solid #fff; border-radius: 50%; }
-    .crop-box { position: absolute; border: 2px solid #818cf8; box-shadow: 0 0 0 9999px rgba(0,0,0,0.6); cursor: move; }
   </style>
 </head>
 <body>
@@ -42,7 +40,7 @@
         <p class="text-sm text-gray-400 -mt-0.5">от Lap.comp — тёмная магия</p>
       </div>
     </div>
-    <button id="settingsBtn" class="text-gray-400 hover:text-white p-2 rounded-full hover:bg-gray-700/30 transition">
+    <button id="settingsBtn" class="text-gray-400 hover:text-white p-2 rounded-full hover:bg-gray-700/30 transition text-xl">
       ⚙️
     </button>
   </div>
@@ -70,7 +68,6 @@
   <div id="cropSection" class="relative mt-4 hidden">
     <div class="relative inline-block w-full">
       <canvas id="cropCanvas" class="crop-canvas w-full"></canvas>
-      <!-- подсказка -->
       <p class="text-center text-xs text-gray-500 mt-1">Перетаскивайте область или углы для кадрирования</p>
     </div>
     <div class="grid grid-cols-4 gap-2 mt-3 text-xs">
@@ -151,7 +148,6 @@
   </div>
 </div>
 
-<!-- FFmpeg.wasm -->
 <script type="importmap">
 {
   "imports": {
@@ -163,7 +159,6 @@
 
 <script type="module">
 import { FFmpeg } from '@ffmpeg/ffmpeg';
-import { toBlobURL } from '@ffmpeg/util';
 
 // --- DOM ---
 const dropZone = document.getElementById('dropZone');
@@ -192,10 +187,10 @@ const cropH = document.getElementById('cropH');
 const cropSection = document.getElementById('cropSection');
 
 let selectedFile = null;
-let fileMetadata = {};
-let cropData = { x: 0, y: 0, w: 0, h: 0 };
+let videoElement = null;
+let cropBox = { x: 0, y: 0, w: 0, h: 0 };
 let isDragging = false;
-let dragMode = null; // 'move', 'nw', 'ne', 'sw', 'se', 'n', 's', 'w', 'e'
+let dragMode = null;
 let startX, startY, startCrop;
 
 // --- Форматы ---
@@ -216,7 +211,7 @@ const formatMap = {
   }
 };
 
-// --- Обновление списка форматов в модалке ---
+// --- Обновление списка форматов ---
 function updateFormatOptions(mode) {
   outFormat.innerHTML = '';
   const formats = mode === 'video' ? formatMap.video : formatMap.audio;
@@ -232,12 +227,13 @@ updateFormatOptions('video');
 // --- Модальное окно ---
 settingsBtn.addEventListener('click', () => settingsModal.classList.remove('hidden'));
 closeModal.addEventListener('click', () => settingsModal.classList.add('hidden'));
+settingsModal.addEventListener('click', (e) => {
+  if (e.target === settingsModal) settingsModal.classList.add('hidden');
+});
 saveSettings.addEventListener('click', () => {
   settingsModal.classList.add('hidden');
-  // обновим режим при необходимости
   const mode = modeSelect.value;
   updateFormatOptions(mode);
-  // если файл загружен, перерисуем кадрирование
   if (selectedFile && mode === 'video') {
     initCrop();
   } else {
@@ -249,12 +245,18 @@ saveSettings.addEventListener('click', () => {
 function openFileDialog() { fileInput.click(); }
 dropZone.addEventListener('click', openFileDialog);
 chooseBtn.addEventListener('click', (e) => { e.stopPropagation(); openFileDialog(); });
-dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('dragover'); });
+
+dropZone.addEventListener('dragover', (e) => {
+  e.preventDefault();
+  dropZone.classList.add('dragover');
+});
 dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
 dropZone.addEventListener('drop', (e) => {
   e.preventDefault();
   dropZone.classList.remove('dragover');
-  if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+  if (e.dataTransfer.files.length) {
+    handleFile(e.dataTransfer.files[0]);
+  }
 });
 fileInput.addEventListener('change', (e) => {
   if (e.target.files.length) handleFile(e.target.files[0]);
@@ -265,12 +267,11 @@ function handleFile(file) {
   fileName.textContent = `${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`;
   status.textContent = '';
   convertBtn.disabled = false;
-  // показываем инфу
   fileInfo.classList.remove('hidden');
   const ext = file.name.split('.').pop().toLowerCase();
   document.getElementById('infoFormat').textContent = ext;
   document.getElementById('infoSize').textContent = (file.size / 1024 / 1024).toFixed(2) + ' MB';
-  // если видео
+
   if (file.type.startsWith('video/')) {
     const vid = document.createElement('video');
     vid.preload = 'metadata';
@@ -279,17 +280,18 @@ function handleFile(file) {
     vid.onloadedmetadata = () => {
       document.getElementById('infoDuration').textContent = vid.duration.toFixed(1) + ' с';
       document.getElementById('infoResolution').textContent = `${vid.videoWidth}×${vid.videoHeight}`;
-      // инициализируем кадрирование
       cropSection.style.display = 'block';
       initCrop(vid);
       URL.revokeObjectURL(url);
     };
-    vid.onerror = () => { document.getElementById('infoDuration').textContent = '—'; };
+    vid.onerror = () => {
+      document.getElementById('infoDuration').textContent = '—';
+    };
   } else if (file.type.startsWith('audio/')) {
     document.getElementById('infoDuration').textContent = '—';
     document.getElementById('infoResolution').textContent = '—';
     cropSection.style.display = 'none';
-    // аудио параметры
+    // пробуем извлечь частоту
     const ctx = new (window.AudioContext || window.webkitAudioContext)();
     const reader = new FileReader();
     reader.onload = async (e) => {
@@ -303,34 +305,14 @@ function handleFile(file) {
   }
 }
 
-// --- Кадрирование с мышью ---
-let videoElement = null;
-let cropBox = { x: 0, y: 0, w: 0, h: 0 };
-
+// --- Кадрирование ---
 function initCrop(vid) {
-  if (!vid) {
-    // попробуем создать видео из файла
-    if (!selectedFile) return;
-    const v = document.createElement('video');
-    v.preload = 'metadata';
-    v.src = URL.createObjectURL(selectedFile);
-    v.onloadedmetadata = () => {
-      videoElement = v;
-      setupCrop(v);
-    };
-    return;
-  }
   videoElement = vid;
-  setupCrop(vid);
-}
-
-function setupCrop(vid) {
   const canvas = cropCanvas;
   const ctx = canvas.getContext('2d');
   const vw = vid.videoWidth, vh = vid.videoHeight;
   canvas.width = vw;
   canvas.height = vh;
-  // начальная область - 80% от центра
   const margin = 0.1;
   cropBox = {
     x: vw * margin,
@@ -338,40 +320,36 @@ function setupCrop(vid) {
     w: vw * (1 - 2 * margin),
     h: vh * (1 - 2 * margin)
   };
-  // обновляем поля
   cropX.value = Math.round(cropBox.x);
   cropY.value = Math.round(cropBox.y);
   cropW.value = Math.round(cropBox.w);
   cropH.value = Math.round(cropBox.h);
-  drawCrop(vid, canvas, ctx);
-  // обработчики мыши
+  drawCrop(ctx);
   canvas.onmousedown = onMouseDown;
   canvas.onmousemove = onMouseMove;
   canvas.onmouseup = onMouseUp;
   canvas.onmouseleave = onMouseUp;
 }
 
-function drawCrop(vid, canvas, ctx) {
+function drawCrop(ctx) {
+  const canvas = cropCanvas;
   const { x, y, w, h } = cropBox;
   ctx.clearRect(0, 0, canvas.width, canvas.height);
-  ctx.drawImage(vid, 0, 0, canvas.width, canvas.height);
-  // затемнение вне области
+  ctx.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
   ctx.fillStyle = 'rgba(0,0,0,0.6)';
   ctx.fillRect(0, 0, canvas.width, y);
   ctx.fillRect(0, y+h, canvas.width, canvas.height - y - h);
   ctx.fillRect(0, y, x, h);
   ctx.fillRect(x+w, y, canvas.width - x - w, h);
-  // рамка
   ctx.strokeStyle = '#818cf8';
   ctx.lineWidth = 2;
   ctx.strokeRect(x, y, w, h);
-  // маркеры (углы)
-  const handles = [
-    [x, y, 'nw'], [x+w/2, y, 'n'], [x+w, y, 'ne'],
-    [x, y+h/2, 'w'], [x+w, y+h/2, 'e'],
-    [x, y+h, 'sw'], [x+w/2, y+h, 's'], [x+w, y+h, 'se']
-  ];
   ctx.fillStyle = '#818cf8';
+  const handles = [
+    [x, y], [x+w/2, y], [x+w, y],
+    [x, y+h/2], [x+w, y+h/2],
+    [x, y+h], [x+w/2, y+h], [x+w, y+h]
+  ];
   handles.forEach(([hx, hy]) => {
     ctx.beginPath();
     ctx.arc(hx, hy, 6, 0, 2*Math.PI);
@@ -389,7 +367,6 @@ function onMouseDown(e) {
   const mx = (e.clientX - rect.left) * scaleX;
   const my = (e.clientY - rect.top) * scaleY;
   const { x, y, w, h } = cropBox;
-  // определить режим
   const handleSize = 12;
   const modes = {
     'nw': [x, y], 'n': [x+w/2, y], 'ne': [x+w, y],
@@ -410,7 +387,6 @@ function onMouseDown(e) {
     startCrop = { ...cropBox };
     return;
   }
-  // перемещение всей области
   if (mx >= x && mx <= x+w && my >= y && my <= y+h) {
     dragMode = 'move';
     isDragging = true;
@@ -435,7 +411,6 @@ function onMouseMove(e) {
     x = Math.max(0, Math.min(vw - w, x + dx));
     y = Math.max(0, Math.min(vh - h, y + dy));
   } else {
-    // изменение размера
     const handle = dragMode;
     if (handle.includes('e')) { w = Math.max(10, w + dx); if (x + w > vw) w = vw - x; }
     if (handle.includes('w')) { const newX = Math.max(0, x + dx); w = Math.max(10, w - (newX - x)); x = newX; }
@@ -447,7 +422,7 @@ function onMouseMove(e) {
   cropY.value = Math.round(y);
   cropW.value = Math.round(w);
   cropH.value = Math.round(h);
-  drawCrop(videoElement, cropCanvas.getContext('2d'));
+  drawCrop(cropCanvas.getContext('2d'));
 }
 
 function onMouseUp() {
@@ -468,10 +443,10 @@ convertBtn.addEventListener('click', async () => {
 
   try {
     const ffmpeg = new FFmpeg();
-    const baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd';
+    // Загружаем core напрямую без toBlobURL
     await ffmpeg.load({
-      coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
-      wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm'),
+      coreURL: 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd/ffmpeg-core.js',
+      wasmURL: 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd/ffmpeg-core.wasm'
     });
 
     const buffer = await selectedFile.arrayBuffer();
@@ -512,7 +487,7 @@ convertBtn.addEventListener('click', async () => {
       const videoCodec = formatMap.video[outExt]?.videoCodec || 'libx264';
       args.push('-c:v', videoCodec);
     } else {
-      args.push('-vn'); // убираем видео
+      args.push('-vn');
     }
 
     args.push('-y', outputName);
@@ -552,8 +527,6 @@ convertBtn.addEventListener('click', async () => {
     }, 2000);
   }
 });
-
-// --- При загрузке страницы, если файл уже выбран, но ничего ---
 </script>
 </body>
 </html>
