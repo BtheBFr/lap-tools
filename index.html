@@ -149,288 +149,269 @@
   </div>
 </div>
 
-<script type="importmap">
-{
-  "imports": {
-    "@ffmpeg/ffmpeg": "https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.10/dist/esm/index.js",
-    "@ffmpeg/core": "https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.6/dist/esm/index.js"
+<!-- Подключаем FFmpeg.wasm старой версии (без Worker) -->
+<script src="https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.9.10/dist/ffmpeg.min.js"></script>
+
+<script>
+  // --- DOM ---
+  const dropZone = document.getElementById('dropZone');
+  const chooseBtn = document.getElementById('chooseBtn');
+  const fileInput = document.getElementById('fileInput');
+  const fileName = document.getElementById('fileName');
+  const fileInfo = document.getElementById('fileInfo');
+  const previewSection = document.getElementById('previewSection');
+  const sourceVideo = document.getElementById('sourceVideo');
+  const cropPreview = document.getElementById('cropPreview');
+  const cropX = document.getElementById('cropX');
+  const cropY = document.getElementById('cropY');
+  const cropW = document.getElementById('cropW');
+  const cropH = document.getElementById('cropH');
+  const convertBtn = document.getElementById('convertBtn');
+  const status = document.getElementById('status');
+  const progressFill = document.getElementById('progressFill');
+  const progressWrap = document.getElementById('progressWrap');
+  const settingsBtn = document.getElementById('settingsBtn');
+  const settingsModal = document.getElementById('settingsModal');
+  const closeModal = document.getElementById('closeModal');
+  const saveSettings = document.getElementById('saveSettings');
+  const modeSelect = document.getElementById('modeSelect');
+  const outFormat = document.getElementById('outFormat');
+  const audioCodec = document.getElementById('audioCodec');
+  const sampleRate = document.getElementById('sampleRate');
+  const audioBitrate = document.getElementById('audioBitrate');
+
+  let selectedFile = null;
+  let videoWidth = 0, videoHeight = 0;
+
+  // --- Форматы ---
+  const formatMap = {
+    video: {
+      mp4: { ext: 'mp4', videoCodec: 'libx264' },
+      webm: { ext: 'webm', videoCodec: 'libvpx-vp9' },
+      avi: { ext: 'avi', videoCodec: 'mpeg4' },
+      mov: { ext: 'mov', videoCodec: 'prores' },
+      mkv: { ext: 'mkv', videoCodec: 'libx264' },
+    },
+    audio: {
+      mp3: { ext: 'mp3' },
+      aac: { ext: 'aac' },
+      opus: { ext: 'opus' },
+      flac: { ext: 'flac' },
+      wav: { ext: 'wav' },
+    }
+  };
+
+  function updateFormatOptions(mode) {
+    outFormat.innerHTML = '';
+    const formats = mode === 'video' ? formatMap.video : formatMap.audio;
+    Object.keys(formats).forEach(key => {
+      const opt = document.createElement('option');
+      opt.value = key;
+      opt.textContent = key.toUpperCase();
+      outFormat.appendChild(opt);
+    });
   }
-}
-</script>
+  updateFormatOptions('video');
 
-<script type="module">
-import { FFmpeg } from '@ffmpeg/ffmpeg';
-
-// DOM
-const dropZone = document.getElementById('dropZone');
-const chooseBtn = document.getElementById('chooseBtn');
-const fileInput = document.getElementById('fileInput');
-const fileName = document.getElementById('fileName');
-const fileInfo = document.getElementById('fileInfo');
-const previewSection = document.getElementById('previewSection');
-const sourceVideo = document.getElementById('sourceVideo');
-const cropPreview = document.getElementById('cropPreview');
-const cropX = document.getElementById('cropX');
-const cropY = document.getElementById('cropY');
-const cropW = document.getElementById('cropW');
-const cropH = document.getElementById('cropH');
-const convertBtn = document.getElementById('convertBtn');
-const status = document.getElementById('status');
-const progressFill = document.getElementById('progressFill');
-const progressWrap = document.getElementById('progressWrap');
-const settingsBtn = document.getElementById('settingsBtn');
-const settingsModal = document.getElementById('settingsModal');
-const closeModal = document.getElementById('closeModal');
-const saveSettings = document.getElementById('saveSettings');
-const modeSelect = document.getElementById('modeSelect');
-const outFormat = document.getElementById('outFormat');
-const audioCodec = document.getElementById('audioCodec');
-const sampleRate = document.getElementById('sampleRate');
-const audioBitrate = document.getElementById('audioBitrate');
-
-let selectedFile = null;
-let videoWidth = 0, videoHeight = 0;
-
-// --- Форматы ---
-const formatMap = {
-  video: {
-    mp4: { ext: 'mp4', videoCodec: 'libx264' },
-    webm: { ext: 'webm', videoCodec: 'libvpx-vp9' },
-    avi: { ext: 'avi', videoCodec: 'mpeg4' },
-    mov: { ext: 'mov', videoCodec: 'prores' },
-    mkv: { ext: 'mkv', videoCodec: 'libx264' },
-  },
-  audio: {
-    mp3: { ext: 'mp3' },
-    aac: { ext: 'aac' },
-    opus: { ext: 'opus' },
-    flac: { ext: 'flac' },
-    wav: { ext: 'wav' },
-  }
-};
-
-function updateFormatOptions(mode) {
-  outFormat.innerHTML = '';
-  const formats = mode === 'video' ? formatMap.video : formatMap.audio;
-  Object.keys(formats).forEach(key => {
-    const opt = document.createElement('option');
-    opt.value = key;
-    opt.textContent = key.toUpperCase();
-    outFormat.appendChild(opt);
+  // --- Модалка ---
+  settingsBtn.addEventListener('click', () => settingsModal.classList.remove('hidden'));
+  closeModal.addEventListener('click', () => settingsModal.classList.add('hidden'));
+  settingsModal.addEventListener('click', (e) => {
+    if (e.target === settingsModal) settingsModal.classList.add('hidden');
   });
-}
-updateFormatOptions('video');
-
-// --- Модалка ---
-settingsBtn.addEventListener('click', () => settingsModal.classList.remove('hidden'));
-closeModal.addEventListener('click', () => settingsModal.classList.add('hidden'));
-settingsModal.addEventListener('click', (e) => {
-  if (e.target === settingsModal) settingsModal.classList.add('hidden');
-});
-saveSettings.addEventListener('click', () => {
-  settingsModal.classList.add('hidden');
-  const mode = modeSelect.value;
-  updateFormatOptions(mode);
-});
-
-// --- Загрузка файла ---
-function openFileDialog() { fileInput.click(); }
-dropZone.addEventListener('click', openFileDialog);
-chooseBtn.addEventListener('click', (e) => { e.stopPropagation(); openFileDialog(); });
-dropZone.addEventListener('dragover', (e) => {
-  e.preventDefault();
-  dropZone.classList.add('dragover');
-});
-dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
-dropZone.addEventListener('drop', (e) => {
-  e.preventDefault();
-  dropZone.classList.remove('dragover');
-  if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
-});
-fileInput.addEventListener('change', (e) => {
-  if (e.target.files.length) handleFile(e.target.files[0]);
-});
-
-function handleFile(file) {
-  selectedFile = file;
-  fileName.textContent = `${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`;
-  status.textContent = '';
-  convertBtn.disabled = false;
-  fileInfo.classList.remove('hidden');
-  const ext = file.name.split('.').pop().toLowerCase();
-  document.getElementById('infoFormat').textContent = ext;
-  document.getElementById('infoSize').textContent = (file.size / 1024 / 1024).toFixed(2) + ' MB';
-
-  if (file.type.startsWith('video/')) {
-    const url = URL.createObjectURL(file);
-    sourceVideo.src = url;
-    sourceVideo.onloadedmetadata = () => {
-      videoWidth = sourceVideo.videoWidth;
-      videoHeight = sourceVideo.videoHeight;
-      document.getElementById('infoResolution').textContent = `${videoWidth}×${videoHeight}`;
-      document.getElementById('infoDuration').textContent = sourceVideo.duration.toFixed(1) + ' с';
-      // автозаполнение ширины/высоты для кадрирования
-      cropW.value = videoWidth;
-      cropH.value = videoHeight;
-      cropX.value = 0;
-      cropY.value = 0;
-      previewSection.classList.remove('hidden');
-      updateCropPreview();
-    };
-    sourceVideo.onerror = () => {
-      document.getElementById('infoDuration').textContent = '—';
-    };
-    // аудио параметры
-    const ctx = new (window.AudioContext || window.webkitAudioContext)();
-    const reader = new FileReader();
-    reader.onload = async (e) => {
-      try {
-        const audioData = await ctx.decodeAudioData(e.target.result);
-        document.getElementById('infoSampleRate').textContent = audioData.sampleRate;
-      } catch {}
-    };
-    reader.readAsArrayBuffer(file);
-  } else if (file.type.startsWith('audio/')) {
-    document.getElementById('infoResolution').textContent = '—';
-    document.getElementById('infoDuration').textContent = '—';
-    previewSection.classList.add('hidden');
-    const ctx = new (window.AudioContext || window.webkitAudioContext)();
-    const reader = new FileReader();
-    reader.onload = async (e) => {
-      try {
-        const audioData = await ctx.decodeAudioData(e.target.result);
-        document.getElementById('infoSampleRate').textContent = audioData.sampleRate;
-        document.getElementById('infoDuration').textContent = audioData.duration.toFixed(1) + ' с';
-      } catch {}
-    };
-    reader.readAsArrayBuffer(file);
-  }
-}
-
-// --- Обновление превью кадрирования ---
-function updateCropPreview() {
-  const canvas = cropPreview;
-  const ctx = canvas.getContext('2d');
-  const vw = videoWidth;
-  const vh = videoHeight;
-  if (!vw || !vh) return;
-  let x = parseInt(cropX.value) || 0;
-  let y = parseInt(cropY.value) || 0;
-  let w = parseInt(cropW.value) || vw;
-  let h = parseInt(cropH.value) || vh;
-  // ограничения
-  x = Math.max(0, Math.min(x, vw - 1));
-  y = Math.max(0, Math.min(y, vh - 1));
-  w = Math.max(1, Math.min(w, vw - x));
-  h = Math.max(1, Math.min(h, vh - y));
-  // рисуем обрезанную область
-  canvas.width = w;
-  canvas.height = h;
-  ctx.drawImage(sourceVideo, x, y, w, h, 0, 0, w, h);
-}
-
-// Подписка на изменение полей
-[cropX, cropY, cropW, cropH].forEach(el => {
-  el.addEventListener('input', updateCropPreview);
-});
-sourceVideo.addEventListener('timeupdate', updateCropPreview);
-sourceVideo.addEventListener('loadeddata', updateCropPreview);
-
-// --- Конвертация ---
-convertBtn.addEventListener('click', async () => {
-  if (!selectedFile) {
-    status.textContent = '⚠️ Сначала выберите файл.';
-    return;
-  }
-  convertBtn.disabled = true;
-  status.textContent = '⏳ Загрузка FFmpeg...';
-  progressWrap.classList.remove('hidden');
-  progressFill.style.width = '0%';
-
-  try {
-    const ffmpeg = new FFmpeg();
-    await ffmpeg.load({
-      coreURL: 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd/ffmpeg-core.js',
-      wasmURL: 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd/ffmpeg-core.wasm'
-    });
-
-    const buffer = await selectedFile.arrayBuffer();
-    const inputExt = selectedFile.name.split('.').pop();
-    const inputName = `input.${inputExt}`;
-    ffmpeg.writeFile(inputName, new Uint8Array(buffer));
-
+  saveSettings.addEventListener('click', () => {
+    settingsModal.classList.add('hidden');
     const mode = modeSelect.value;
-    const outExt = outFormat.value;
-    const outputName = `output.${outExt}`;
-    let args = ['-i', inputName];
+    updateFormatOptions(mode);
+  });
 
-    // Кадрирование
-    if (mode === 'video') {
-      const x = parseInt(cropX.value) || 0;
-      const y = parseInt(cropY.value) || 0;
-      let w = parseInt(cropW.value) || videoWidth;
-      let h = parseInt(cropH.value) || videoHeight;
-      if (w > 0 && h > 0) {
-        args.push('-vf', `crop=${w}:${h}:${x}:${y}`);
-      }
-    }
+  // --- Загрузка файла ---
+  function openFileDialog() { fileInput.click(); }
+  dropZone.addEventListener('click', openFileDialog);
+  chooseBtn.addEventListener('click', (e) => { e.stopPropagation(); openFileDialog(); });
+  dropZone.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    dropZone.classList.add('dragover');
+  });
+  dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+  dropZone.addEventListener('drop', (e) => {
+    e.preventDefault();
+    dropZone.classList.remove('dragover');
+    if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+  });
+  fileInput.addEventListener('change', (e) => {
+    if (e.target.files.length) handleFile(e.target.files[0]);
+  });
 
-    // Аудио
-    const acodec = audioCodec.value;
-    const sr = sampleRate.value;
-    const abitrate = audioBitrate.value;
-    if (acodec !== 'copy') {
-      args.push('-c:a', acodec);
-      args.push('-ar', sr);
-      args.push('-b:a', `${abitrate}k`);
-    } else {
-      args.push('-c:a', 'copy');
-    }
-
-    // Видео
-    if (mode === 'video') {
-      const videoCodec = formatMap.video[outExt]?.videoCodec || 'libx264';
-      args.push('-c:v', videoCodec);
-    } else {
-      args.push('-vn');
-    }
-
-    args.push('-y', outputName);
-
-    status.textContent = '🔄 Обработка...';
-    ffmpeg.on('progress', ({ progress }) => {
-      const pct = Math.round(progress * 100);
-      progressFill.style.width = `${pct}%`;
-      status.textContent = `⏳ Конвертация: ${pct}%`;
-    });
-
-    await ffmpeg.exec(args);
-    const data = await ffmpeg.readFile(outputName);
-    const blob = new Blob([data], { type: `video/${outExt}` });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `converted.${outExt}`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
-
-    ffmpeg.deleteFile(inputName);
-    ffmpeg.deleteFile(outputName);
-    status.textContent = '✅ Готово! Файл скачан.';
-    progressFill.style.width = '100%';
-  } catch (err) {
-    console.error(err);
-    status.textContent = `❌ Ошибка: ${err.message || 'Неизвестная ошибка'}`;
-  } finally {
+  function handleFile(file) {
+    selectedFile = file;
+    fileName.textContent = `${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`;
+    status.textContent = '';
     convertBtn.disabled = false;
-    setTimeout(() => {
-      progressWrap.classList.add('hidden');
-      progressFill.style.width = '0%';
-    }, 2000);
+    fileInfo.classList.remove('hidden');
+    const ext = file.name.split('.').pop().toLowerCase();
+    document.getElementById('infoFormat').textContent = ext;
+    document.getElementById('infoSize').textContent = (file.size / 1024 / 1024).toFixed(2) + ' MB';
+
+    if (file.type.startsWith('video/')) {
+      const url = URL.createObjectURL(file);
+      sourceVideo.src = url;
+      sourceVideo.onloadedmetadata = () => {
+        videoWidth = sourceVideo.videoWidth;
+        videoHeight = sourceVideo.videoHeight;
+        document.getElementById('infoResolution').textContent = `${videoWidth}×${videoHeight}`;
+        document.getElementById('infoDuration').textContent = sourceVideo.duration.toFixed(1) + ' с';
+        cropW.value = videoWidth;
+        cropH.value = videoHeight;
+        cropX.value = 0;
+        cropY.value = 0;
+        previewSection.classList.remove('hidden');
+        updateCropPreview();
+      };
+      sourceVideo.onerror = () => {
+        document.getElementById('infoDuration').textContent = '—';
+      };
+    } else if (file.type.startsWith('audio/')) {
+      document.getElementById('infoResolution').textContent = '—';
+      document.getElementById('infoDuration').textContent = '—';
+      previewSection.classList.add('hidden');
+      // аудио параметры
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const reader = new FileReader();
+      reader.onload = async (e) => {
+        try {
+          const audioData = await ctx.decodeAudioData(e.target.result);
+          document.getElementById('infoSampleRate').textContent = audioData.sampleRate;
+          document.getElementById('infoDuration').textContent = audioData.duration.toFixed(1) + ' с';
+        } catch {}
+      };
+      reader.readAsArrayBuffer(file);
+    }
   }
-});
+
+  // --- Обновление превью кадрирования ---
+  function updateCropPreview() {
+    const canvas = cropPreview;
+    const ctx = canvas.getContext('2d');
+    const vw = videoWidth;
+    const vh = videoHeight;
+    if (!vw || !vh) return;
+    let x = parseInt(cropX.value) || 0;
+    let y = parseInt(cropY.value) || 0;
+    let w = parseInt(cropW.value) || vw;
+    let h = parseInt(cropH.value) || vh;
+    x = Math.max(0, Math.min(x, vw - 1));
+    y = Math.max(0, Math.min(y, vh - 1));
+    w = Math.max(1, Math.min(w, vw - x));
+    h = Math.max(1, Math.min(h, vh - y));
+    canvas.width = w;
+    canvas.height = h;
+    ctx.drawImage(sourceVideo, x, y, w, h, 0, 0, w, h);
+  }
+
+  [cropX, cropY, cropW, cropH].forEach(el => {
+    el.addEventListener('input', updateCropPreview);
+  });
+  sourceVideo.addEventListener('timeupdate', updateCropPreview);
+  sourceVideo.addEventListener('loadeddata', updateCropPreview);
+
+  // --- Конвертация ---
+  convertBtn.addEventListener('click', async () => {
+    if (!selectedFile) {
+      status.textContent = '⚠️ Сначала выберите файл.';
+      return;
+    }
+    convertBtn.disabled = true;
+    status.textContent = '⏳ Загрузка FFmpeg...';
+    progressWrap.classList.remove('hidden');
+    progressFill.style.width = '0%';
+
+    try {
+      // Создаем экземпляр FFmpeg
+      const ffmpeg = new FFmpeg();
+      // Загружаем core (используем CDN)
+      await ffmpeg.load({
+        coreURL: 'https://unpkg.com/@ffmpeg/core@0.11.0/dist/ffmpeg-core.js',
+        wasmURL: 'https://unpkg.com/@ffmpeg/core@0.11.0/dist/ffmpeg-core.wasm'
+      });
+
+      const buffer = await selectedFile.arrayBuffer();
+      const inputExt = selectedFile.name.split('.').pop();
+      const inputName = `input.${inputExt}`;
+      ffmpeg.FS('writeFile', inputName, new Uint8Array(buffer));
+
+      const mode = modeSelect.value;
+      const outExt = outFormat.value;
+      const outputName = `output.${outExt}`;
+      let args = ['-i', inputName];
+
+      // Кадрирование
+      if (mode === 'video') {
+        const x = parseInt(cropX.value) || 0;
+        const y = parseInt(cropY.value) || 0;
+        let w = parseInt(cropW.value) || videoWidth;
+        let h = parseInt(cropH.value) || videoHeight;
+        if (w > 0 && h > 0) {
+          args.push('-vf', `crop=${w}:${h}:${x}:${y}`);
+        }
+      }
+
+      // Аудио
+      const acodec = audioCodec.value;
+      const sr = sampleRate.value;
+      const abitrate = audioBitrate.value;
+      if (acodec !== 'copy') {
+        args.push('-c:a', acodec);
+        args.push('-ar', sr);
+        args.push('-b:a', `${abitrate}k`);
+      } else {
+        args.push('-c:a', 'copy');
+      }
+
+      // Видео
+      if (mode === 'video') {
+        const videoCodec = formatMap.video[outExt]?.videoCodec || 'libx264';
+        args.push('-c:v', videoCodec);
+      } else {
+        args.push('-vn');
+      }
+
+      args.push('-y', outputName);
+
+      status.textContent = '🔄 Обработка...';
+      ffmpeg.setProgress(({ ratio }) => {
+        const pct = Math.round(ratio * 100);
+        progressFill.style.width = `${pct}%`;
+        status.textContent = `⏳ Конвертация: ${pct}%`;
+      });
+
+      await ffmpeg.run(...args);
+      const data = ffmpeg.FS('readFile', outputName);
+      const blob = new Blob([data], { type: `video/${outExt}` });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `converted.${outExt}`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+
+      ffmpeg.FS('unlink', inputName);
+      ffmpeg.FS('unlink', outputName);
+      status.textContent = '✅ Готово! Файл скачан.';
+      progressFill.style.width = '100%';
+    } catch (err) {
+      console.error(err);
+      status.textContent = `❌ Ошибка: ${err.message || 'Неизвестная ошибка'}`;
+    } finally {
+      convertBtn.disabled = false;
+      setTimeout(() => {
+        progressWrap.classList.add('hidden');
+        progressFill.style.width = '0%';
+      }, 2000);
+    }
+  });
 </script>
 </body>
 </html>
