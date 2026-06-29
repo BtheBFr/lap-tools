@@ -1,165 +1,153 @@
 <!DOCTYPE html>
-<html lang="ru">
+<html lang="ru" class="dark">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Lap Tools — Универсальный конвертер</title>
+  <title>Lap Tools — тёмный конвертер</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link href="https://fonts.googleapis.com/css2?family=Inter:opsz@14..32&display=swap" rel="stylesheet" />
   <style>
     * { font-family: 'Inter', sans-serif; }
-    body { background: #f0f4fc; }
-    .glass { background: rgba(255,255,255,0.8); backdrop-filter: blur(16px); border: 1px solid rgba(255,255,255,0.4); }
-    .drop-zone { border: 2px dashed #cbd5e1; transition: all 0.2s; background: #fafcff; }
-    .drop-zone.dragover { border-color: #6366f1; background: #eef2ff; }
+    body { background: #0b0e14; color: #e2e8f0; }
+    .glass-dark { background: rgba(20, 25, 35, 0.85); backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.06); }
+    .drop-zone { border: 2px dashed #334155; transition: all 0.2s; background: #141a24; }
+    .drop-zone.dragover { border-color: #818cf8; background: #1e2330; }
     .btn-primary { background: linear-gradient(135deg, #6366f1, #8b5cf6); transition: all 0.2s; }
     .btn-primary:hover { transform: scale(1.02); box-shadow: 0 8px 25px rgba(99,102,241,0.4); }
-    .btn-primary:disabled { opacity: 0.5; transform: none; box-shadow: none; }
-    .logo-gradient { background: linear-gradient(135deg, #6366f1, #a78bfa); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
-    .progress-bar { height: 6px; background: #e2e8f0; border-radius: 99px; overflow: hidden; }
+    .btn-primary:disabled { opacity: 0.4; transform: none; box-shadow: none; }
+    .logo-gradient { background: linear-gradient(135deg, #818cf8, #a78bfa); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+    .progress-bar { height: 4px; background: #1e293b; border-radius: 99px; overflow: hidden; }
     .progress-fill { height: 100%; width: 0%; background: linear-gradient(90deg, #6366f1, #8b5cf6); transition: width 0.3s; }
-    .crop-canvas { border-radius: 16px; background: #000; max-width: 100%; max-height: 400px; }
-    video { border-radius: 16px; max-width: 100%; max-height: 400px; background: #000; }
-    .info-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px,1fr)); gap: 8px; }
-    .info-item { background: #f8fafc; padding: 6px 12px; border-radius: 10px; font-size: 0.8rem; }
-    .info-item span { font-weight: 600; color: #1e293b; }
+    video, .crop-canvas { border-radius: 16px; background: #000; max-width: 100%; max-height: 450px; }
+    .crop-canvas { cursor: crosshair; }
+    .modal { background: rgba(0,0,0,0.7); backdrop-filter: blur(8px); }
+    .modal-card { background: #1e2430; border: 1px solid #334155; max-width: 600px; width: 100%; }
+    select, input { background: #141a24; border: 1px solid #334155; color: #e2e8f0; border-radius: 12px; padding: 0.5rem 1rem; }
+    select:focus, input:focus { outline: 2px solid #6366f1; }
+    .info-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px,1fr)); gap: 6px; }
+    .info-item { background: #141a24; padding: 4px 12px; border-radius: 8px; font-size: 0.75rem; border: 1px solid #1e293b; }
+    .info-item span { color: #a5b4fc; font-weight: 600; }
+    .crop-handle { position: absolute; width: 10px; height: 10px; background: #818cf8; border: 1px solid #fff; border-radius: 50%; }
+    .crop-box { position: absolute; border: 2px solid #818cf8; box-shadow: 0 0 0 9999px rgba(0,0,0,0.6); cursor: move; }
   </style>
 </head>
 <body>
-<div class="max-w-6xl mx-auto px-4 py-6">
-  <!-- Шапка -->
-  <div class="flex items-center gap-3 mb-6">
-    <div class="w-10 h-10 rounded-xl bg-indigo-100 flex items-center justify-center text-2xl">⚡</div>
-    <div>
-      <h1 class="text-3xl font-bold logo-gradient">Lap Tools</h1>
-      <p class="text-sm text-gray-500 -mt-0.5">от Lap.comp — всё в вашем браузере</p>
+<div class="max-w-5xl mx-auto px-4 py-6 relative">
+  <!-- Заголовок -->
+  <div class="flex items-center justify-between mb-6">
+    <div class="flex items-center gap-3">
+      <div class="w-10 h-10 rounded-xl bg-indigo-900/40 flex items-center justify-center text-2xl">⚡</div>
+      <div>
+        <h1 class="text-3xl font-bold logo-gradient">Lap Tools</h1>
+        <p class="text-sm text-gray-400 -mt-0.5">от Lap.comp — тёмная магия</p>
+      </div>
+    </div>
+    <button id="settingsBtn" class="text-gray-400 hover:text-white p-2 rounded-full hover:bg-gray-700/30 transition">
+      ⚙️
+    </button>
+  </div>
+
+  <!-- Зона загрузки -->
+  <div class="drop-zone rounded-2xl p-8 text-center cursor-pointer transition" id="dropZone">
+    <div class="text-5xl mb-3">📂</div>
+    <p class="text-gray-300 font-medium">Перетащите файл или <span class="text-indigo-400 underline" id="chooseBtn">выберите</span></p>
+    <p class="text-sm text-gray-500 mt-1" id="fileName">Файл не выбран</p>
+    <input type="file" id="fileInput" class="hidden" accept="video/*,audio/*" />
+  </div>
+
+  <!-- Информация о файле -->
+  <div id="fileInfo" class="hidden info-grid text-xs text-gray-400 mt-4">
+    <div class="info-item">📁 Формат: <span id="infoFormat">—</span></div>
+    <div class="info-item">📐 Размер: <span id="infoSize">—</span></div>
+    <div class="info-item">⏱ Длит.: <span id="infoDuration">—</span></div>
+    <div class="info-item">🖥 Разр.: <span id="infoResolution">—</span></div>
+    <div class="info-item">🎵 Кодек: <span id="infoAudioCodec">—</span></div>
+    <div class="info-item">🎛 Частота: <span id="infoSampleRate">—</span> Гц</div>
+    <div class="info-item">📊 Битрейт: <span id="infoBitrate">—</span></div>
+  </div>
+
+  <!-- Превью + кадрирование -->
+  <div id="cropSection" class="relative mt-4 hidden">
+    <div class="relative inline-block w-full">
+      <canvas id="cropCanvas" class="crop-canvas w-full"></canvas>
+      <!-- подсказка -->
+      <p class="text-center text-xs text-gray-500 mt-1">Перетаскивайте область или углы для кадрирования</p>
+    </div>
+    <div class="grid grid-cols-4 gap-2 mt-3 text-xs">
+      <div><label class="text-gray-400">X</label><input type="number" id="cropX" value="0" step="1" class="w-full" /></div>
+      <div><label class="text-gray-400">Y</label><input type="number" id="cropY" value="0" step="1" class="w-full" /></div>
+      <div><label class="text-gray-400">Ширина</label><input type="number" id="cropW" placeholder="авто" step="1" class="w-full" /></div>
+      <div><label class="text-gray-400">Высота</label><input type="number" id="cropH" placeholder="авто" step="1" class="w-full" /></div>
     </div>
   </div>
 
-  <!-- Основная карточка -->
-  <div class="glass rounded-3xl shadow-xl p-6 md:p-8 space-y-6">
-    <!-- Загрузка -->
-    <div class="drop-zone rounded-2xl p-8 text-center cursor-pointer transition" id="dropZone">
-      <div class="text-5xl mb-3">📂</div>
-      <p class="text-gray-600 font-medium">Перетащите файл или <span class="text-indigo-600 underline">выберите</span></p>
-      <p class="text-sm text-gray-400 mt-1" id="fileName">Файл не выбран</p>
-      <input type="file" id="fileInput" class="hidden" accept="video/*,audio/*" />
-    </div>
-
-    <!-- Информация о файле (автоопределение) -->
-    <div id="fileInfo" class="hidden info-grid text-sm text-gray-600">
-      <div class="info-item">📁 Формат: <span id="infoFormat">—</span></div>
-      <div class="info-item">📐 Размер: <span id="infoSize">—</span></div>
-      <div class="info-item">⏱ Длительность: <span id="infoDuration">—</span></div>
-      <div class="info-item">🖥 Разрешение: <span id="infoResolution">—</span></div>
-      <div class="info-item">🎵 Аудио кодек: <span id="infoAudioCodec">—</span></div>
-      <div class="info-item">🎛 Частота: <span id="infoSampleRate">—</span> Гц</div>
-      <div class="info-item">📊 Битрейт: <span id="infoBitrate">—</span></div>
-    </div>
-
-    <!-- Режим конвертации -->
-    <div class="flex flex-wrap gap-4 items-center">
-      <span class="text-sm font-medium text-gray-700">Режим:</span>
-      <select id="modeSelect" class="border border-gray-300 rounded-xl px-4 py-2 bg-white focus:ring-2 focus:ring-indigo-400 outline-none">
-        <option value="video">🎬 Видео → Видео</option>
-        <option value="audio">🎵 Видео → Аудио</option>
-        <option value="audio2audio">🎵 Аудио → Аудио</option>
-      </select>
-    </div>
-
-    <!-- Настройки (динамические) -->
-    <div id="settingsPanel" class="grid grid-cols-1 md:grid-cols-2 gap-5">
-      <!-- Выходной формат -->
-      <div>
-        <label class="block text-sm font-medium text-gray-700">Выходной формат</label>
-        <select id="outFormat" class="mt-1 w-full border border-gray-300 rounded-xl px-4 py-2.5 bg-white focus:ring-2 focus:ring-indigo-400 outline-none">
-          <!-- заполняется динамически -->
-        </select>
-      </div>
-      <!-- Аудиокодек -->
-      <div>
-        <label class="block text-sm font-medium text-gray-700">Аудиокодек</label>
-        <select id="audioCodec" class="mt-1 w-full border border-gray-300 rounded-xl px-4 py-2.5 bg-white focus:ring-2 focus:ring-indigo-400 outline-none">
-          <option value="aac">AAC</option>
-          <option value="mp3">MP3</option>
-          <option value="opus">Opus</option>
-          <option value="ac3">AC-3</option>
-          <option value="flac">FLAC</option>
-          <option value="copy">Копировать</option>
-        </select>
-      </div>
-      <!-- Частота дискретизации -->
-      <div>
-        <label class="block text-sm font-medium text-gray-700">Частота дискретизации (Гц)</label>
-        <select id="sampleRate" class="mt-1 w-full border border-gray-300 rounded-xl px-4 py-2.5 bg-white focus:ring-2 focus:ring-indigo-400 outline-none">
-          <option value="16000">16 000</option>
-          <option value="22050">22 050</option>
-          <option value="44100">44 100</option>
-          <option value="48000" selected>48 000</option>
-        </select>
-      </div>
-      <!-- Аудиобитрейт -->
-      <div>
-        <label class="block text-sm font-medium text-gray-700">Аудиобитрейт (kbps)</label>
-        <select id="audioBitrate" class="mt-1 w-full border border-gray-300 rounded-xl px-4 py-2.5 bg-white focus:ring-2 focus:ring-indigo-400 outline-none">
-          <option value="128">128</option>
-          <option value="192">192</option>
-          <option value="256">256</option>
-          <option value="320">320</option>
-        </select>
-      </div>
-    </div>
-
-    <!-- Кадрирование (только для видео→видео) -->
-    <div id="cropSection" class="border-t pt-4">
-      <details open>
-        <summary class="cursor-pointer font-medium text-gray-700 hover:text-indigo-600 transition">✂️ Кадрирование (предпросмотр)</summary>
-        <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-6">
-          <!-- Исходное видео -->
-          <div>
-            <p class="text-xs text-gray-500 mb-1">Исходное</p>
-            <video id="sourceVideo" controls muted class="w-full rounded-xl bg-black"></video>
-          </div>
-          <!-- Предпросмотр обрезанного -->
-          <div>
-            <p class="text-xs text-gray-500 mb-1">После кадрирования</p>
-            <canvas id="cropPreview" class="crop-canvas w-full"></canvas>
-          </div>
-        </div>
-        <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mt-3">
-          <div>
-            <label class="block text-xs text-gray-500">X</label>
-            <input type="number" id="cropX" value="0" step="1" min="0" class="w-full border rounded-lg px-3 py-1.5" />
-          </div>
-          <div>
-            <label class="block text-xs text-gray-500">Y</label>
-            <input type="number" id="cropY" value="0" step="1" min="0" class="w-full border rounded-lg px-3 py-1.5" />
-          </div>
-          <div>
-            <label class="block text-xs text-gray-500">Ширина</label>
-            <input type="number" id="cropW" placeholder="auto" step="1" min="1" class="w-full border rounded-lg px-3 py-1.5" />
-          </div>
-          <div>
-            <label class="block text-xs text-gray-500">Высота</label>
-            <input type="number" id="cropH" placeholder="auto" step="1" min="1" class="w-full border rounded-lg px-3 py-1.5" />
-          </div>
-        </div>
-        <p class="text-xs text-gray-400 mt-2">Оставьте ширину/высоту пустыми для автоматического подбора (сохраняя пропорции).</p>
-      </details>
-    </div>
-
-    <!-- Кнопка и прогресс -->
-    <button id="convertBtn" class="btn-primary w-full text-white font-semibold py-3.5 rounded-2xl transition disabled:opacity-50 disabled:cursor-not-allowed text-lg">
+  <!-- Кнопки действий -->
+  <div class="flex gap-3 mt-6">
+    <button id="convertBtn" class="btn-primary flex-1 text-white font-semibold py-3 rounded-2xl transition disabled:opacity-50 disabled:cursor-not-allowed text-lg">
       🚀 Конвертировать
     </button>
-    <div id="progressWrap" class="hidden progress-bar">
-      <div id="progressFill" class="progress-fill"></div>
-    </div>
-    <p id="status" class="text-center text-sm text-gray-500 min-h-[1.5rem]"></p>
   </div>
 
-  <div class="text-center text-xs text-gray-400 mt-6">
-    Lap Tools &bull; Все операции локальные, файлы не покидают ваш компьютер.
+  <!-- Прогресс и статус -->
+  <div id="progressWrap" class="hidden progress-bar mt-3">
+    <div id="progressFill" class="progress-fill"></div>
+  </div>
+  <p id="status" class="text-center text-sm text-gray-400 min-h-[1.5rem] mt-1"></p>
+
+  <!-- Модальное окно настроек -->
+  <div id="settingsModal" class="modal fixed inset-0 flex items-center justify-center p-4 hidden z-50">
+    <div class="modal-card rounded-3xl p-6 space-y-5 max-h-[90vh] overflow-y-auto">
+      <div class="flex justify-between items-center">
+        <h2 class="text-xl font-semibold text-white">⚙️ Настройки</h2>
+        <button id="closeModal" class="text-gray-400 hover:text-white text-2xl">&times;</button>
+      </div>
+      <div class="space-y-4">
+        <div>
+          <label class="block text-sm text-gray-300">Режим</label>
+          <select id="modeSelect" class="w-full">
+            <option value="video">🎬 Видео → Видео</option>
+            <option value="audio">🎵 Видео → Аудио</option>
+            <option value="audio2audio">🎵 Аудио → Аудио</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-sm text-gray-300">Выходной формат</label>
+          <select id="outFormat" class="w-full">
+            <!-- заполняется динамически -->
+          </select>
+        </div>
+        <div>
+          <label class="block text-sm text-gray-300">Аудиокодек</label>
+          <select id="audioCodec" class="w-full">
+            <option value="aac">AAC</option>
+            <option value="mp3">MP3</option>
+            <option value="opus">Opus</option>
+            <option value="ac3">AC-3</option>
+            <option value="flac">FLAC</option>
+            <option value="copy">Копировать</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-sm text-gray-300">Частота дискретизации (Гц)</label>
+          <select id="sampleRate" class="w-full">
+            <option value="16000">16 000</option>
+            <option value="22050">22 050</option>
+            <option value="44100">44 100</option>
+            <option value="48000" selected>48 000</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-sm text-gray-300">Аудиобитрейт (kbps)</label>
+          <select id="audioBitrate" class="w-full">
+            <option value="128">128</option>
+            <option value="192">192</option>
+            <option value="256">256</option>
+            <option value="320">320</option>
+          </select>
+        </div>
+      </div>
+      <button id="saveSettings" class="btn-primary w-full text-white font-semibold py-2.5 rounded-xl transition">Сохранить</button>
+    </div>
   </div>
 </div>
 
@@ -177,8 +165,9 @@
 import { FFmpeg } from '@ffmpeg/ffmpeg';
 import { toBlobURL } from '@ffmpeg/util';
 
-// DOM
+// --- DOM ---
 const dropZone = document.getElementById('dropZone');
+const chooseBtn = document.getElementById('chooseBtn');
 const fileInput = document.getElementById('fileInput');
 const fileName = document.getElementById('fileName');
 const fileInfo = document.getElementById('fileInfo');
@@ -186,25 +175,30 @@ const convertBtn = document.getElementById('convertBtn');
 const status = document.getElementById('status');
 const progressFill = document.getElementById('progressFill');
 const progressWrap = document.getElementById('progressWrap');
+const settingsBtn = document.getElementById('settingsBtn');
+const settingsModal = document.getElementById('settingsModal');
+const closeModal = document.getElementById('closeModal');
+const saveSettings = document.getElementById('saveSettings');
 const modeSelect = document.getElementById('modeSelect');
 const outFormat = document.getElementById('outFormat');
 const audioCodec = document.getElementById('audioCodec');
 const sampleRate = document.getElementById('sampleRate');
 const audioBitrate = document.getElementById('audioBitrate');
-const sourceVideo = document.getElementById('sourceVideo');
-const cropPreview = document.getElementById('cropPreview');
+const cropCanvas = document.getElementById('cropCanvas');
 const cropX = document.getElementById('cropX');
 const cropY = document.getElementById('cropY');
 const cropW = document.getElementById('cropW');
 const cropH = document.getElementById('cropH');
 const cropSection = document.getElementById('cropSection');
-const settingsPanel = document.getElementById('settingsPanel');
 
 let selectedFile = null;
 let fileMetadata = {};
-let cropTimer = null;
+let cropData = { x: 0, y: 0, w: 0, h: 0 };
+let isDragging = false;
+let dragMode = null; // 'move', 'nw', 'ne', 'sw', 'se', 'n', 's', 'w', 'e'
+let startX, startY, startCrop;
 
-// --- Настройки форматов ---
+// --- Форматы ---
 const formatMap = {
   video: {
     mp4: { ext: 'mp4', videoCodec: 'libx264', audioCodec: 'aac' },
@@ -222,7 +216,7 @@ const formatMap = {
   }
 };
 
-// --- Заполнение select форматов ---
+// --- Обновление списка форматов в модалке ---
 function updateFormatOptions(mode) {
   outFormat.innerHTML = '';
   const formats = mode === 'video' ? formatMap.video : formatMap.audio;
@@ -235,28 +229,26 @@ function updateFormatOptions(mode) {
 }
 updateFormatOptions('video');
 
-// --- Переключение режима ---
-modeSelect.addEventListener('change', () => {
+// --- Модальное окно ---
+settingsBtn.addEventListener('click', () => settingsModal.classList.remove('hidden'));
+closeModal.addEventListener('click', () => settingsModal.classList.add('hidden'));
+saveSettings.addEventListener('click', () => {
+  settingsModal.classList.add('hidden');
+  // обновим режим при необходимости
   const mode = modeSelect.value;
   updateFormatOptions(mode);
-  // Показываем/скрываем настройки видео
-  if (mode === 'video') {
-    cropSection.style.display = 'block';
-    settingsPanel.style.display = 'grid';
-    // Показываем все поля
+  // если файл загружен, перерисуем кадрирование
+  if (selectedFile && mode === 'video') {
+    initCrop();
   } else {
     cropSection.style.display = 'none';
-    settingsPanel.style.display = 'grid';
-    if (mode === 'audio2audio') {
-      // можно скрыть видео-параметры, но оставим для простоты
-    }
   }
-  // Обновим информацию при наличии файла
-  if (selectedFile) updateFileInfo(selectedFile);
 });
 
-// --- Загрузка файла ---
-dropZone.addEventListener('click', () => fileInput.click());
+// --- Загрузка файла (клик и перетаскивание) ---
+function openFileDialog() { fileInput.click(); }
+dropZone.addEventListener('click', openFileDialog);
+chooseBtn.addEventListener('click', (e) => { e.stopPropagation(); openFileDialog(); });
 dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('dragover'); });
 dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
 dropZone.addEventListener('drop', (e) => {
@@ -273,36 +265,13 @@ function handleFile(file) {
   fileName.textContent = `${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`;
   status.textContent = '';
   convertBtn.disabled = false;
-  // Определяем параметры
-  updateFileInfo(file);
-  // Загружаем видео для предпросмотра
-  if (file.type.startsWith('video/')) {
-    const url = URL.createObjectURL(file);
-    sourceVideo.src = url;
-    sourceVideo.onloadedmetadata = () => {
-      // Устанавливаем значения кадрирования по умолчанию
-      const vw = sourceVideo.videoWidth, vh = sourceVideo.videoHeight;
-      cropW.placeholder = vw;
-      cropH.placeholder = vh;
-      cropX.max = vw-1; cropY.max = vh-1;
-      cropW.value = ''; cropH.value = ''; // авто
-      updateCropPreview();
-    };
-  } else {
-    sourceVideo.src = '';
-    cropSection.style.display = 'none';
-  }
-}
-
-// --- Определение параметров файла (автоматически) ---
-function updateFileInfo(file) {
+  // показываем инфу
+  fileInfo.classList.remove('hidden');
   const ext = file.name.split('.').pop().toLowerCase();
   document.getElementById('infoFormat').textContent = ext;
   document.getElementById('infoSize').textContent = (file.size / 1024 / 1024).toFixed(2) + ' MB';
-
-  // Длительность и разрешение через video/audio
-  const isVideo = file.type.startsWith('video/');
-  if (isVideo) {
+  // если видео
+  if (file.type.startsWith('video/')) {
     const vid = document.createElement('video');
     vid.preload = 'metadata';
     const url = URL.createObjectURL(file);
@@ -310,76 +279,181 @@ function updateFileInfo(file) {
     vid.onloadedmetadata = () => {
       document.getElementById('infoDuration').textContent = vid.duration.toFixed(1) + ' с';
       document.getElementById('infoResolution').textContent = `${vid.videoWidth}×${vid.videoHeight}`;
-      // Для аудио параметров попробуем через AudioContext
-      extractAudioInfo(file);
+      // инициализируем кадрирование
+      cropSection.style.display = 'block';
+      initCrop(vid);
       URL.revokeObjectURL(url);
     };
-    vid.onerror = () => {
-      document.getElementById('infoDuration').textContent = '—';
-      document.getElementById('infoResolution').textContent = '—';
-    };
+    vid.onerror = () => { document.getElementById('infoDuration').textContent = '—'; };
   } else if (file.type.startsWith('audio/')) {
     document.getElementById('infoDuration').textContent = '—';
     document.getElementById('infoResolution').textContent = '—';
-    extractAudioInfo(file);
-  } else {
-    document.getElementById('infoDuration').textContent = '—';
-    document.getElementById('infoResolution').textContent = '—';
+    cropSection.style.display = 'none';
+    // аудио параметры
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      try {
+        const audioData = await ctx.decodeAudioData(e.target.result);
+        document.getElementById('infoSampleRate').textContent = audioData.sampleRate;
+        document.getElementById('infoDuration').textContent = audioData.duration.toFixed(1) + ' с';
+      } catch {}
+    };
+    reader.readAsArrayBuffer(file);
   }
-  // Показываем панель
-  fileInfo.classList.remove('hidden');
 }
 
-function extractAudioInfo(file) {
-  // Используем AudioContext для получения sample rate
-  const ctx = new (window.AudioContext || window.webkitAudioContext)();
-  const reader = new FileReader();
-  reader.onload = async (e) => {
-    try {
-      const audioData = await ctx.decodeAudioData(e.target.result);
-      document.getElementById('infoSampleRate').textContent = audioData.sampleRate;
-      document.getElementById('infoBitrate').textContent = '—'; // трудно точно
-      // Также длительность
-      document.getElementById('infoDuration').textContent = audioData.duration.toFixed(1) + ' с';
-    } catch {
-      document.getElementById('infoSampleRate').textContent = '—';
-    }
-  };
-  reader.readAsArrayBuffer(file);
+// --- Кадрирование с мышью ---
+let videoElement = null;
+let cropBox = { x: 0, y: 0, w: 0, h: 0 };
+
+function initCrop(vid) {
+  if (!vid) {
+    // попробуем создать видео из файла
+    if (!selectedFile) return;
+    const v = document.createElement('video');
+    v.preload = 'metadata';
+    v.src = URL.createObjectURL(selectedFile);
+    v.onloadedmetadata = () => {
+      videoElement = v;
+      setupCrop(v);
+    };
+    return;
+  }
+  videoElement = vid;
+  setupCrop(vid);
 }
 
-// --- Предпросмотр кадрирования ---
-function updateCropPreview() {
-  if (!sourceVideo.videoWidth) return;
-  const canvas = cropPreview;
+function setupCrop(vid) {
+  const canvas = cropCanvas;
   const ctx = canvas.getContext('2d');
-  const vw = sourceVideo.videoWidth, vh = sourceVideo.videoHeight;
-  let x = parseInt(cropX.value) || 0;
-  let y = parseInt(cropY.value) || 0;
-  let w = parseInt(cropW.value) || vw;
-  let h = parseInt(cropH.value) || vh;
-  // Коррекция
-  if (x < 0) x = 0;
-  if (y < 0) y = 0;
-  if (x + w > vw) w = vw - x;
-  if (y + h > vh) h = vh - y;
-  if (w < 1) w = 1;
-  if (h < 1) h = 1;
-  // Рисуем обрезанный кадр
-  canvas.width = w;
-  canvas.height = h;
-  ctx.drawImage(sourceVideo, x, y, w, h, 0, 0, w, h);
+  const vw = vid.videoWidth, vh = vid.videoHeight;
+  canvas.width = vw;
+  canvas.height = vh;
+  // начальная область - 80% от центра
+  const margin = 0.1;
+  cropBox = {
+    x: vw * margin,
+    y: vh * margin,
+    w: vw * (1 - 2 * margin),
+    h: vh * (1 - 2 * margin)
+  };
+  // обновляем поля
+  cropX.value = Math.round(cropBox.x);
+  cropY.value = Math.round(cropBox.y);
+  cropW.value = Math.round(cropBox.w);
+  cropH.value = Math.round(cropBox.h);
+  drawCrop(vid, canvas, ctx);
+  // обработчики мыши
+  canvas.onmousedown = onMouseDown;
+  canvas.onmousemove = onMouseMove;
+  canvas.onmouseup = onMouseUp;
+  canvas.onmouseleave = onMouseUp;
 }
 
-// Обновление при изменении параметров
-[cropX, cropY, cropW, cropH].forEach(el => {
-  el.addEventListener('input', () => {
-    clearTimeout(cropTimer);
-    cropTimer = setTimeout(updateCropPreview, 100);
+function drawCrop(vid, canvas, ctx) {
+  const { x, y, w, h } = cropBox;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.drawImage(vid, 0, 0, canvas.width, canvas.height);
+  // затемнение вне области
+  ctx.fillStyle = 'rgba(0,0,0,0.6)';
+  ctx.fillRect(0, 0, canvas.width, y);
+  ctx.fillRect(0, y+h, canvas.width, canvas.height - y - h);
+  ctx.fillRect(0, y, x, h);
+  ctx.fillRect(x+w, y, canvas.width - x - w, h);
+  // рамка
+  ctx.strokeStyle = '#818cf8';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(x, y, w, h);
+  // маркеры (углы)
+  const handles = [
+    [x, y, 'nw'], [x+w/2, y, 'n'], [x+w, y, 'ne'],
+    [x, y+h/2, 'w'], [x+w, y+h/2, 'e'],
+    [x, y+h, 'sw'], [x+w/2, y+h, 's'], [x+w, y+h, 'se']
+  ];
+  ctx.fillStyle = '#818cf8';
+  handles.forEach(([hx, hy]) => {
+    ctx.beginPath();
+    ctx.arc(hx, hy, 6, 0, 2*Math.PI);
+    ctx.fill();
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 1;
+    ctx.stroke();
   });
-});
-sourceVideo.addEventListener('timeupdate', updateCropPreview);
-sourceVideo.addEventListener('loadeddata', updateCropPreview);
+}
+
+function onMouseDown(e) {
+  const rect = cropCanvas.getBoundingClientRect();
+  const scaleX = cropCanvas.width / rect.width;
+  const scaleY = cropCanvas.height / rect.height;
+  const mx = (e.clientX - rect.left) * scaleX;
+  const my = (e.clientY - rect.top) * scaleY;
+  const { x, y, w, h } = cropBox;
+  // определить режим
+  const handleSize = 12;
+  const modes = {
+    'nw': [x, y], 'n': [x+w/2, y], 'ne': [x+w, y],
+    'w': [x, y+h/2], 'e': [x+w, y+h/2],
+    'sw': [x, y+h], 's': [x+w/2, y+h], 'se': [x+w, y+h]
+  };
+  let mode = null;
+  for (const [key, [hx, hy]] of Object.entries(modes)) {
+    if (Math.abs(mx - hx) < handleSize && Math.abs(my - hy) < handleSize) {
+      mode = key;
+      break;
+    }
+  }
+  if (mode) {
+    dragMode = mode;
+    isDragging = true;
+    startX = mx; startY = my;
+    startCrop = { ...cropBox };
+    return;
+  }
+  // перемещение всей области
+  if (mx >= x && mx <= x+w && my >= y && my <= y+h) {
+    dragMode = 'move';
+    isDragging = true;
+    startX = mx; startY = my;
+    startCrop = { ...cropBox };
+  }
+}
+
+function onMouseMove(e) {
+  if (!isDragging) return;
+  const rect = cropCanvas.getBoundingClientRect();
+  const scaleX = cropCanvas.width / rect.width;
+  const scaleY = cropCanvas.height / rect.height;
+  const mx = (e.clientX - rect.left) * scaleX;
+  const my = (e.clientY - rect.top) * scaleY;
+  const dx = mx - startX;
+  const dy = my - startY;
+  let { x, y, w, h } = startCrop;
+  const vw = cropCanvas.width, vh = cropCanvas.height;
+
+  if (dragMode === 'move') {
+    x = Math.max(0, Math.min(vw - w, x + dx));
+    y = Math.max(0, Math.min(vh - h, y + dy));
+  } else {
+    // изменение размера
+    const handle = dragMode;
+    if (handle.includes('e')) { w = Math.max(10, w + dx); if (x + w > vw) w = vw - x; }
+    if (handle.includes('w')) { const newX = Math.max(0, x + dx); w = Math.max(10, w - (newX - x)); x = newX; }
+    if (handle.includes('s')) { h = Math.max(10, h + dy); if (y + h > vh) h = vh - y; }
+    if (handle.includes('n')) { const newY = Math.max(0, y + dy); h = Math.max(10, h - (newY - y)); y = newY; }
+  }
+  cropBox = { x, y, w, h };
+  cropX.value = Math.round(x);
+  cropY.value = Math.round(y);
+  cropW.value = Math.round(w);
+  cropH.value = Math.round(h);
+  drawCrop(videoElement, cropCanvas.getContext('2d'));
+}
+
+function onMouseUp() {
+  isDragging = false;
+  dragMode = null;
+}
 
 // --- Конвертация ---
 convertBtn.addEventListener('click', async () => {
@@ -405,24 +479,23 @@ convertBtn.addEventListener('click', async () => {
     const inputName = `input.${inputExt}`;
     ffmpeg.writeFile(inputName, new Uint8Array(buffer));
 
-    // Параметры
     const mode = modeSelect.value;
     const outExt = outFormat.value;
     let outputName = `output.${outExt}`;
     let args = ['-i', inputName];
 
-    // Добавляем обрезку (только для видео->видео)
-    if (mode === 'video') {
+    // Кадрирование (только видео→видео)
+    if (mode === 'video' && cropSection.style.display !== 'none') {
       const x = parseInt(cropX.value) || 0;
       const y = parseInt(cropY.value) || 0;
-      let w = parseInt(cropW.value) || sourceVideo.videoWidth || 0;
-      let h = parseInt(cropH.value) || sourceVideo.videoHeight || 0;
+      let w = parseInt(cropW.value) || cropCanvas.width || 0;
+      let h = parseInt(cropH.value) || cropCanvas.height || 0;
       if (w > 0 && h > 0) {
         args.push('-vf', `crop=${w}:${h}:${x}:${y}`);
       }
     }
 
-    // Аудио настройки
+    // Аудио
     const acodec = audioCodec.value;
     const sr = sampleRate.value;
     const abitrate = audioBitrate.value;
@@ -434,27 +507,17 @@ convertBtn.addEventListener('click', async () => {
       args.push('-c:a', 'copy');
     }
 
-    // Видео кодек (если видео-режим)
+    // Видео
     if (mode === 'video') {
       const videoCodec = formatMap.video[outExt]?.videoCodec || 'libx264';
       args.push('-c:v', videoCodec);
     } else {
-      // Видео→аудио: отключаем видео
-      if (mode === 'audio') {
-        args.push('-vn');
-      }
-      // Аудио→аудио: оставляем только аудио
-      if (mode === 'audio2audio') {
-        args.push('-vn');
-        // и возможно меняем контейнер
-      }
+      args.push('-vn'); // убираем видео
     }
 
     args.push('-y', outputName);
 
     status.textContent = '🔄 Обработка...';
-    console.log('FFmpeg args:', args);
-
     ffmpeg.on('progress', ({ progress }) => {
       const pct = Math.round(progress * 100);
       progressFill.style.width = `${pct}%`;
@@ -462,7 +525,6 @@ convertBtn.addEventListener('click', async () => {
     });
 
     await ffmpeg.exec(args);
-
     const data = await ffmpeg.readFile(outputName);
     const blob = new Blob([data], { type: `video/${outExt}` });
     const url = URL.createObjectURL(blob);
@@ -491,6 +553,7 @@ convertBtn.addEventListener('click', async () => {
   }
 });
 
+// --- При загрузке страницы, если файл уже выбран, но ничего ---
 </script>
 </body>
 </html>
