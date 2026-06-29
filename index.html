@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Lap Tools — Видео-конвертер</title>
+  <!-- Tailwind + шрифт -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:opsz@14..32&display=swap" rel="stylesheet" />
+  <style>
+    * { font-family: 'Inter', sans-serif; }
+    body { background: #f6f8fc; }
+    .card { background: rgba(255,255,255,0.85); backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.3); }
+    .drop-zone { border: 2px dashed #cbd5e1; transition: all 0.2s; background: #fafcff; }
+    .drop-zone.dragover { border-color: #6366f1; background: #eef2ff; }
+    .btn-primary { background: linear-gradient(135deg, #6366f1, #8b5cf6); }
+    .btn-primary:hover { transform: scale(1.02); box-shadow: 0 8px 25px rgba(99,102,241,0.4); }
+    .logo-gradient { background: linear-gradient(135deg, #6366f1, #a78bfa); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+    .progress-bar { height: 6px; background: #e2e8f0; border-radius: 99px; overflow: hidden; }
+    .progress-fill { height: 100%; width: 0%; background: linear-gradient(90deg, #6366f1, #8b5cf6); transition: width 0.3s ease; }
+    code { background: #f1f5f9; padding: 0.2rem 0.4rem; border-radius: 6px; font-size: 0.8rem; color: #1e293b; }
+  </style>
+</head>
+<body>
+  <div class="max-w-4xl mx-auto px-4 py-8">
+    <!-- Шапка -->
+    <div class="flex items-center gap-3 mb-6">
+      <div class="w-10 h-10 rounded-xl bg-indigo-100 flex items-center justify-center text-2xl">⚡</div>
+      <div>
+        <h1 class="text-3xl font-bold logo-gradient">Lap Tools</h1>
+        <p class="text-sm text-gray-500 -mt-0.5">от Lap.comp — конвертер в браузере</p>
+      </div>
+    </div>
+
+    <!-- Карточка -->
+    <div class="card rounded-3xl shadow-xl p-6 md:p-8 space-y-6">
+      <!-- Зона загрузки -->
+      <div class="drop-zone rounded-2xl p-10 text-center cursor-pointer transition" id="dropZone">
+        <div class="text-5xl mb-3">📂</div>
+        <p class="text-gray-600 font-medium">Перетащите видео сюда или <span class="text-indigo-600 underline">выберите файл</span></p>
+        <p class="text-sm text-gray-400 mt-1" id="fileName">Файл не выбран</p>
+        <input type="file" id="fileInput" class="hidden" accept="video/*" />
+      </div>
+
+      <!-- Настройки в сетке -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+        <div>
+          <label class="block text-sm font-medium text-gray-700">Выходной формат</label>
+          <select id="format" class="mt-1 w-full border border-gray-300 rounded-xl px-4 py-2.5 bg-white focus:ring-2 focus:ring-indigo-400 outline-none">
+            <option value="mp4">MP4</option>
+            <option value="webm">WebM</option>
+            <option value="avi">AVI</option>
+            <option value="mov">MOV</option>
+            <option value="mkv">MKV</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700">Аудиокодек</label>
+          <select id="audioCodec" class="mt-1 w-full border border-gray-300 rounded-xl px-4 py-2.5 bg-white focus:ring-2 focus:ring-indigo-400 outline-none">
+            <option value="aac">AAC</option>
+            <option value="mp3">MP3</option>
+            <option value="opus">Opus</option>
+            <option value="ac3">AC-3</option>
+            <option value="copy">Копировать (без перекодирования)</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700">Частота дискретизации (Гц)</label>
+          <select id="sampleRate" class="mt-1 w-full border border-gray-300 rounded-xl px-4 py-2.5 bg-white focus:ring-2 focus:ring-indigo-400 outline-none">
+            <option value="44100">44 100</option>
+            <option value="48000" selected>48 000</option>
+            <option value="22050">22 050</option>
+            <option value="16000">16 000</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700">Аудиобитрейт (kbps)</label>
+          <select id="audioBitrate" class="mt-1 w-full border border-gray-300 rounded-xl px-4 py-2.5 bg-white focus:ring-2 focus:ring-indigo-400 outline-none">
+            <option value="128">128</option>
+            <option value="192">192</option>
+            <option value="256">256</option>
+            <option value="320">320</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Дополнительные опции (обрезка / кадрирование) -->
+      <details class="border-t pt-4 text-sm">
+        <summary class="cursor-pointer font-medium text-gray-700 hover:text-indigo-600 transition">✂️ Дополнительно: обрезка и кадрирование</summary>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
+          <div>
+            <label class="block text-xs text-gray-500">Начало (сек)</label>
+            <input type="number" id="startTime" value="0" step="0.1" min="0" class="w-full border border-gray-300 rounded-lg px-3 py-2" />
+          </div>
+          <div>
+            <label class="block text-xs text-gray-500">Длительность (сек)</label>
+            <input type="number" id="duration" placeholder="всё видео" step="0.1" min="0" class="w-full border border-gray-300 rounded-lg px-3 py-2" />
+          </div>
+          <div>
+            <label class="block text-xs text-gray-500">Кадрирование (фильтр crop)</label>
+            <input type="text" id="cropFilter" placeholder="w=640:h=360:x=100:y=100" class="w-full border border-gray-300 rounded-lg px-3 py-2" />
+            <p class="text-[10px] text-gray-400 mt-1">Пример: <code>w=640:h=360:x=0:y=0</code></p>
+          </div>
+        </div>
+      </details>
+
+      <!-- Кнопка и прогресс -->
+      <button id="convertBtn" class="btn-primary w-full text-white font-semibold py-3.5 rounded-2xl transition disabled:opacity-50 disabled:cursor-not-allowed text-lg">
+        🚀 Конвертировать
+      </button>
+      <div id="progressWrap" class="hidden progress-bar">
+        <div id="progressFill" class="progress-fill"></div>
+      </div>
+      <p id="status" class="text-center text-sm text-gray-500 min-h-[1.5rem]"></p>
+    </div>
+
+    <!-- Footer -->
+    <div class="text-center text-xs text-gray-400 mt-6">
+      Lap Tools &bull; Обработка полностью локальная, файлы не загружаются на сервер.
+    </div>
+  </div>
+
+  <!-- Импорт FFmpeg.wasm -->
+  <script type="importmap">
+    {
+      "imports": {
+        "@ffmpeg/ffmpeg": "https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.10/dist/esm/index.js",
+        "@ffmpeg/core": "https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.6/dist/esm/index.js"
+      }
+    }
+  </script>
+
+  <script type="module">
+    import { FFmpeg } from '@ffmpeg/ffmpeg';
+    import { toBlobURL } from '@ffmpeg/util';
+
+    // DOM-ссылки
+    const fileInput = document.getElementById('fileInput');
+    const dropZone = document.getElementById('dropZone');
+    const fileName = document.getElementById('fileName');
+    const convertBtn = document.getElementById('convertBtn');
+    const status = document.getElementById('status');
+    const progressFill = document.getElementById('progressFill');
+    const progressWrap = document.getElementById('progressWrap');
+    const formatSelect = document.getElementById('format');
+    const audioCodecSelect = document.getElementById('audioCodec');
+    const sampleRateSelect = document.getElementById('sampleRate');
+    const audioBitrateSelect = document.getElementById('audioBitrate');
+    const startTimeInput = document.getElementById('startTime');
+    const durationInput = document.getElementById('duration');
+    const cropFilterInput = document.getElementById('cropFilter');
+
+    let selectedFile = null;
+
+    // События загрузки
+    dropZone.addEventListener('click', () => fileInput.click());
+    dropZone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      dropZone.classList.add('dragover');
+    });
+    dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+    dropZone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dropZone.classList.remove('dragover');
+      if (e.dataTransfer.files.length) {
+        handleFile(e.dataTransfer.files[0]);
+      }
+    });
+    fileInput.addEventListener('change', (e) => {
+      if (e.target.files.length) handleFile(e.target.files[0]);
+    });
+
+    function handleFile(file) {
+      selectedFile = file;
+      fileName.textContent = `${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`;
+      status.textContent = '';
+      convertBtn.disabled = false;
+    }
+
+    // Конвертация
+    convertBtn.addEventListener('click', async () => {
+      if (!selectedFile) {
+        status.textContent = '⚠️ Сначала выберите файл.';
+        return;
+      }
+      convertBtn.disabled = true;
+      status.textContent = '⏳ Загрузка FFmpeg...';
+      progressWrap.classList.remove('hidden');
+      progressFill.style.width = '0%';
+
+      try {
+        // Инициализация FFmpeg
+        const ffmpeg = new FFmpeg();
+        const baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd';
+        await ffmpeg.load({
+          coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
+          wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm'),
+        });
+
+        // Читаем файл как ArrayBuffer
+        const buffer = await selectedFile.arrayBuffer();
+        const inputName = 'input.' + selectedFile.name.split('.').pop();
+        ffmpeg.writeFile(inputName, new Uint8Array(buffer));
+
+        // Собираем параметры
+        const format = formatSelect.value;
+        const audioCodec = audioCodecSelect.value;
+        const sampleRate = sampleRateSelect.value;
+        const bitrate = audioBitrateSelect.value;
+        const start = parseFloat(startTimeInput.value) || 0;
+        const duration = parseFloat(durationInput.value) || undefined;
+        const crop = cropFilterInput.value.trim();
+
+        const outputName = `output.${format}`;
+        let args = ['-i', inputName];
+
+        // Обрезка
+        if (start > 0) args.push('-ss', String(start));
+        if (duration && duration > 0) args.push('-t', String(duration));
+
+        // Кадрирование
+        if (crop) {
+          // проверка корректности фильтра (простая)
+          if (/^w=\d+:h=\d+:x=\d+:y=\d+$/.test(crop) || /^w=\d+:h=\d+$/.test(crop)) {
+            args.push('-vf', `crop=${crop}`);
+          } else {
+            status.textContent = '⚠️ Некорректный формат кадрирования. Используйте w=...:h=...:x=...:y=...';
+            convertBtn.disabled = false;
+            return;
+          }
+        }
+
+        // Аудио
+        if (audioCodec !== 'copy') {
+          args.push('-c:a', audioCodec);
+          args.push('-ar', sampleRate);
+          args.push('-b:a', `${bitrate}k`);
+        } else {
+          args.push('-c:a', 'copy');
+        }
+
+        // Видео кодек (по умолчанию копируем или выбираем в зависимости от формата)
+        if (format === 'mp4') args.push('-c:v', 'libx264');
+        else if (format === 'webm') args.push('-c:v', 'libvpx-vp9');
+        else if (format === 'avi') args.push('-c:v', 'mpeg4');
+        else if (format === 'mov') args.push('-c:v', 'prores');
+        else if (format === 'mkv') args.push('-c:v', 'libx264');
+        else args.push('-c:v', 'copy'); // fallback
+
+        // Перезапись
+        args.push('-y', outputName);
+
+        status.textContent = '🔄 Обработка...';
+        console.log('FFmpeg args:', args);
+
+        // Прогресс
+        ffmpeg.on('progress', ({ progress }) => {
+          const pct = Math.round(progress * 100);
+          progressFill.style.width = `${pct}%`;
+          status.textContent = `⏳ Конвертация: ${pct}%`;
+        });
+
+        await ffmpeg.exec(args);
+
+        // Читаем результат
+        const data = await ffmpeg.readFile(outputName);
+        const blob = new Blob([data], { type: `video/${format}` });
+        const url = URL.createObjectURL(blob);
+
+        // Скачивание
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `converted.${format}`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+
+        // Очистка
+        ffmpeg.deleteFile(inputName);
+        ffmpeg.deleteFile(outputName);
+
+        status.textContent = '✅ Готово! Файл скачан.';
+        progressFill.style.width = '100%';
+      } catch (err) {
+        console.error(err);
+        status.textContent = `❌ Ошибка: ${err.message || 'Неизвестная ошибка'}`;
+      } finally {
+        convertBtn.disabled = false;
+        setTimeout(() => {
+          progressWrap.classList.add('hidden');
+          progressFill.style.width = '0%';
+        }, 2000);
+      }
+    });
+  </script>
+</body>
+</html>
